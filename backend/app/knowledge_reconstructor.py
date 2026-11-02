@@ -20,7 +20,8 @@ def reconstruct_knowledge(text: str, filename: str = "unknown") -> dict:
 
     dependency_keywords = [
         "depends on", "dependency",
-        "after completing", "requires", "blocked by"
+        "after completing", "requires", "blocked by",
+        "before", "must be completed"
     ]
 
     decision_keywords = [
@@ -37,32 +38,50 @@ def reconstruct_knowledge(text: str, filename: str = "unknown") -> dict:
         people.update(matches)
 
     
+    
     # 2. Identify and structure dependencies
     for line in lines:
 
-     match = re.search(
-        r"(.+?)\s+depends on\s+(.+)",
-        line,
-        re.IGNORECASE
-     )
+        match = re.search(
+            r"(.+?)\s+depends on\s+(.+)",
+            line,
+            re.IGNORECASE
+        )
 
-     if match:
-        source_task = match.group(1).strip()
-        depends_on = match.group(2).strip().rstrip(".")
+        if match:
+            source_task = match.group(1).strip()
+            depends_on = match.group(2).strip().rstrip(".")
 
-        dependencies.append({
-            "source_task": source_task,
-            "depends_on": depends_on,
-            "relationship": "blocked_by",
-            "original_text": line
-        })
+            dependencies.append({
+                "source_task": source_task,
+                "depends_on": depends_on,
+                "relationship": "blocked_by",
+                "original_text": line
+            })
 
-     elif any(word in line.lower() for word in dependency_keywords):
-        dependencies.append({
-            "original_text": line,
-            "relationship": "unclassified"
-        })
+        else:
+            before_match = re.search(
+                r"(.+?)\s+must be completed\s+before\s+(.+)",
+                line,
+                re.IGNORECASE
+            )
 
+            if before_match:
+                prerequisite = before_match.group(1).strip()
+                following_task = before_match.group(2).strip().rstrip(".")
+
+                dependencies.append({
+                    "source_task": following_task,
+                    "depends_on": prerequisite,
+                    "relationship": "blocked_by",
+                    "original_text": line
+                })
+
+            elif any(word in line.lower() for word in dependency_keywords):
+                dependencies.append({
+                    "original_text": line,
+                    "relationship": "unclassified"
+                })
 
     # 3. Identify tasks, owners and deadlines
     for line in lines:
