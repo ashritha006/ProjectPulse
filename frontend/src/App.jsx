@@ -1,401 +1,467 @@
 
 import { useState } from "react";
-import "./App.css";
 
-const navigation = [
-  { id: "overview", label: "Overview" },
-  { id: "sources", label: "Source Upload" },
-  { id: "extracted", label: "Extracted Knowledge" },
-  { id: "mapper", label: "MAPPER" },
-  { id: "graph", label: "Knowledge Graph" },
-  { id: "gaps", label: "Knowledge Gaps" },
-  { id: "handover", label: "Handover Playbook" },
+const sections = [
+  ["overview", "Overview"],
+  ["sources", "Source Upload"],
+  ["extracted", "Extracted Knowledge"],
+  ["mapper", "MAPPER"],
+  ["graph", "Knowledge Graph"],
+  ["gaps", "Knowledge Gaps"],
+  ["handover", "Handover Playbook"],
 ];
 
 function App() {
-  const [activeSection, setActiveSection] = useState("overview");
   const [files, setFiles] = useState([]);
   const [message, setMessage] = useState("");
   const [projectName, setProjectName] = useState("My Project");
+  const [activeSection, setActiveSection] = useState("overview");
 
-  const navigateTo = (section) => {
-    setActiveSection(section);
-    document.getElementById(section)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  };
-
-  const handleFileUpload = (event) => {
+  function handleFileChange(event) {
     const selectedFiles = Array.from(event.target.files || []);
-    const allowedExtensions = [".pdf", ".docx", ".csv"];
+    const allowed = [".pdf", ".docx", ".csv"];
 
-    const validFiles = selectedFiles.filter((file) => {
-      const extension = file.name
-        .substring(file.name.lastIndexOf("."))
-        .toLowerCase();
+    const validFiles = selectedFiles.filter((file) =>
+      allowed.some((extension) =>
+        file.name.toLowerCase().endsWith(extension)
+      )
+    );
 
-      return allowedExtensions.includes(extension);
-    });
-
-    const invalidCount = selectedFiles.length - validFiles.length;
-
-    setFiles((previousFiles) => {
-      const newFiles = validFiles.filter(
-        (file) =>
-          !previousFiles.some(
-            (existing) =>
-              existing.name === file.name &&
-              existing.size === file.size
-          )
+    setFiles((previous) => {
+      const combined = [...previous, ...validFiles];
+      return combined.filter(
+        (file, index, array) =>
+          array.findIndex(
+            (item) =>
+              item.name === file.name &&
+              item.size === file.size
+          ) === index
       );
-
-      return [...previousFiles, ...newFiles];
     });
 
-    if (invalidCount > 0) {
-      setMessage("Some files were skipped. Only PDF, DOCX and CSV are accepted.");
+    if (validFiles.length !== selectedFiles.length) {
+      setMessage("Only PDF, DOCX and CSV files are supported.");
     } else if (validFiles.length > 0) {
-      setMessage("Files selected successfully. They are ready for backend processing.");
-    } else {
-      setMessage("No supported files were selected.");
+      setMessage("Files selected successfully. Ready for backend processing.");
     }
 
     event.target.value = "";
-  };
+  }
 
-  const removeFile = (indexToRemove) => {
-    setFiles((previousFiles) =>
-      previousFiles.filter((_, index) => index !== indexToRemove)
+  function removeFile(indexToRemove) {
+    setFiles((previous) =>
+      previous.filter((_, index) => index !== indexToRemove)
     );
-    setMessage("File removed from the upload list.");
-  };
+    setMessage("File removed.");
+  }
 
-  const prepareExtraction = () => {
+  function prepareExtraction() {
     if (files.length === 0) {
-      setMessage("Please select at least one project document.");
+      setMessage("Please select at least one PDF, DOCX or CSV file first.");
       return;
     }
 
     setMessage(
-      "Upload selection is ready. Connect the FastAPI document-processing endpoint to start actual extraction."
+      "Your files are selected successfully. Actual extraction will begin after connecting the FastAPI backend."
     );
-  };
+  }
 
-  const formatSize = (bytes) => {
-    if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(1)} KB`;
-    }
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  };
+  function navigateTo(id) {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function formatSize(bytes) {
+    return (bytes / 1024).toFixed(1) + " KB";
+  }
 
   return (
-    <div className="app">
+    <div className="app-container">
+      <style>{`
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+          margin: 0;
+          background: #f3f6fa;
+          color: #243b53;
+          font-family: Arial, sans-serif;
+        }
+        .app-container { min-height: 100vh; }
+        .sidebar {
+          width: 245px;
+          position: fixed;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          padding: 28px 18px;
+          background: #102a43;
+          color: white;
+          overflow-y: auto;
+        }
+        .brand { font-size: 23px; font-weight: bold; margin-bottom: 5px; }
+        .brand-sub { color: #bcccdc; font-size: 13px; margin-bottom: 35px; }
+        .nav-button {
+          display: block;
+          width: 100%;
+          text-align: left;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: #d9e2ec;
+          padding: 12px;
+          margin: 5px 0;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        .nav-button:hover, .nav-button.active {
+          background: #2563eb;
+          color: white;
+        }
+        .main-content {
+          margin-left: 245px;
+          padding: 35px;
+          max-width: 1500px;
+        }
+        .top-label { color: #2563eb; font-size: 13px; font-weight: bold; }
+        h1 { color: #102a43; font-size: 30px; margin-bottom: 10px; }
+        h2 { color: #102a43; font-size: 23px; }
+        h3 { color: #102a43; }
+        .section { padding: 20px 0 35px; scroll-margin-top: 20px; }
+        .card {
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 22px;
+          margin: 15px 0;
+          box-shadow: 0 3px 12px rgba(16,42,67,.04);
+        }
+        .welcome {
+          background: linear-gradient(120deg,#102a43,#0f766e);
+          color: white;
+          padding: 30px;
+          border-radius: 13px;
+          margin: 25px 0;
+        }
+        .welcome h2 { color: white; }
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(2,minmax(0,1fr));
+          gap: 15px;
+        }
+        .category { border-left: 4px solid #2563eb; }
+        .muted { color: #627d98; line-height: 1.6; }
+        .primary-button {
+          background: #2563eb;
+          color: white;
+          border: 0;
+          padding: 12px 20px;
+          border-radius: 7px;
+          cursor: pointer;
+          font-weight: bold;
+          margin-top: 12px;
+        }
+        .primary-button:hover { background: #1d4ed8; }
+        .file-input {
+          display: block;
+          margin: 15px 0;
+          padding: 12px;
+          border: 1px dashed #829ab1;
+          border-radius: 8px;
+          width: 100%;
+          background: #f8fafc;
+        }
+        .file-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .remove-button {
+          border: 0;
+          color: #b42318;
+          background: #fff1f0;
+          padding: 8px 12px;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .status {
+          background: #eff6ff;
+          border-left: 4px solid #2563eb;
+          padding: 13px;
+          margin-top: 15px;
+          border-radius: 5px;
+          line-height: 1.5;
+        }
+        .step {
+          padding: 12px;
+          margin: 8px 0;
+          background: #f8fafc;
+          border-radius: 7px;
+        }
+        .graph {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+          padding: 25px 5px;
+        }
+        .graph-node {
+          background: #eaf2ff;
+          border: 1px solid #93c5fd;
+          border-radius: 9px;
+          padding: 16px;
+          font-weight: bold;
+        }
+        footer {
+          border-top: 1px solid #d9e2ec;
+          padding: 20px 0;
+          color: #627d98;
+          font-size: 13px;
+        }
+        @media(max-width:750px) {
+          .sidebar {
+            position: relative;
+            width: 100%;
+            padding: 18px;
+          }
+          .main-content { margin-left: 0; padding: 18px; }
+          .grid { grid-template-columns: 1fr; }
+          .file-row { align-items: flex-start; }
+        }
+      `}</style>
+
       <aside className="sidebar">
-        <h2>ProjectPulse</h2>
-        <p className="tagline">Intelligent Knowledge Handover</p>
+        <div className="brand">ProjectPulse</div>
+        <div className="brand-sub">Intelligent Knowledge Handover</div>
 
-        <nav>
-          {navigation.map((item) => (
-            <a
-              key={item.id}
-              href={`#${item.id}`}
-              className={activeSection === item.id ? "active" : ""}
-              onClick={(event) => {
-                event.preventDefault();
-                navigateTo(item.id);
-              }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        {sections.map(([id, label]) => (
+          <button
+            key={id}
+            className={`nav-button ${activeSection === id ? "active" : ""}`}
+            onClick={() => navigateTo(id)}
+          >
+            {label}
+          </button>
+        ))}
 
-        <div className="sidebar-footer">
-          <p>CodeNova</p>
-          <span>Project Knowledge Platform</span>
-        </div>
+        <p style={{ marginTop: 35, color: "#bcccdc", fontSize: 13 }}>
+          CodeNova
+        </p>
+        <p style={{ color: "#bcccdc", fontSize: 12 }}>
+          Project Knowledge Platform
+        </p>
       </aside>
 
       <main className="main-content">
-        {/* OVERVIEW */}
-        <section id="overview" className="page-section">
-          <header>
-            <div>
-              <h1>Project Knowledge Overview</h1>
-              <p>Reconstruct, connect and preserve project knowledge.</p>
-            </div>
-          </header>
+        <section id="overview" className="section">
+          <div className="top-label">CODENOVA · PROJECT KNOWLEDGE PLATFORM</div>
+          <h1>Project Knowledge Overview</h1>
+          <p className="muted">
+            Reconstruct, connect and preserve project knowledge.
+          </p>
 
-          <section className="welcome">
+          <div className="welcome">
             <h2>Welcome to ProjectPulse</h2>
             <p>
               Transform scattered project information into connected,
-              reviewable and actionable knowledge for smoother employee
-              handovers.
+              reviewable and actionable knowledge for smoother employee handovers.
             </p>
-          </section>
+          </div>
 
-          <section className="project-info">
-            <label htmlFor="projectName">Project name</label>
+          <div className="card">
+            <h3>Project name</h3>
             <input
-              id="projectName"
               value={projectName}
               onChange={(event) => setProjectName(event.target.value)}
-              placeholder="Enter your project name"
+              style={{ padding: 11, width: "100%", maxWidth: 400 }}
+              placeholder="Enter project name"
             />
-          </section>
-
-          <div className="section-heading">
-            <h2>Knowledge Categories</h2>
-            <p>The four main categories organised by ProjectPulse.</p>
           </div>
 
-          <section className="knowledge-grid">
-            <div className="knowledge-card">
+          <h2>Knowledge Categories</h2>
+          <p className="muted">The four main categories organised by ProjectPulse.</p>
+
+          <div className="grid">
+            <div className="card category">
               <h3>People</h3>
-              <p>Team members, responsibilities and contributors.</p>
+              Team members, responsibilities and contributors.
             </div>
-
-            <div className="knowledge-card">
+            <div className="card category">
               <h3>Tasks</h3>
-              <p>Active work, completed tasks, pending work and blockers.</p>
+              Active work, completed tasks, pending work and blockers.
             </div>
-
-            <div className="knowledge-card">
+            <div className="card category">
               <h3>Modules</h3>
-              <p>Project components, services and architecture.</p>
+              Project components, services and architecture.
             </div>
-
-            <div className="knowledge-card">
+            <div className="card category">
               <h3>Dependencies</h3>
-              <p>Relationships between people, tasks and modules.</p>
+              Relationships between people, tasks and modules.
             </div>
-          </section>
+          </div>
 
-          <section className="workflow">
-            <h2>Knowledge Reconstruction Workflow</h2>
-            {[
-              "Select authorised project sources",
-              "Extract project information",
-              "MAPPER – Organise and normalise knowledge",
-              "GRAPH – Connect project relationships",
-              "Reconstruct decisions and context",
-              "Validate evidence and identify knowledge gaps",
-              "Generate the handover playbook",
-              "Review and export",
-            ].map((step, index) => (
-              <div className="workflow-step" key={step}>
-                <span>{index + 1}</span>
-                <p>{step}</p>
-              </div>
-            ))}
-          </section>
+          <h2>Knowledge Reconstruction Workflow</h2>
+          {[
+            "Select authorised project sources",
+            "Extract project information",
+            "MAPPER – Organise and normalise knowledge",
+            "GRAPH – Connect project relationships",
+            "Reconstruct decisions and context",
+            "Validate evidence and identify knowledge gaps",
+            "Generate the handover playbook",
+            "Review and export",
+          ].map((step, index) => (
+            <div className="step" key={step}>
+              <strong>{index + 1}.</strong> {step}
+            </div>
+          ))}
         </section>
 
-        {/* SOURCE UPLOAD */}
-        <section id="sources" className="feature-section page-section">
-          <div className="section-heading">
-            <h2>Source Upload</h2>
-            <p>
-              Select project documents that contain project activities,
-              responsibilities and technical information.
-            </p>
-          </div>
+        <section id="sources" className="section">
+          <h2>Source Upload</h2>
+          <p className="muted">
+            Select project documents that contain project activities,
+            responsibilities and technical information.
+          </p>
 
-          <div className="upload-area">
+          <div className="card">
             <h3>Select project documents</h3>
-            <p>Supported formats: PDF, DOCX and CSV</p>
+            <p className="muted">Supported formats: PDF, DOCX and CSV</p>
 
-            <label className="upload-button">
-              Choose Files
-              <input
-                type="file"
-                accept=".pdf,.docx,.csv"
-                multiple
-                onChange={handleFileUpload}
-              />
-            </label>
-          </div>
+            <input
+              className="file-input"
+              type="file"
+              accept=".pdf,.docx,.csv"
+              multiple
+              onChange={handleFileChange}
+            />
 
-          {message && (
-            <p className="status-message" role="status">
-              {message}
-            </p>
-          )}
+            <h3>Selected Files ({files.length})</h3>
 
-          <div className="uploaded-heading">
-            <h3>Selected Files</h3>
-            <span>{files.length} file(s)</span>
-          </div>
-
-          {files.length === 0 ? (
-            <div className="empty-state">
-              <p>No project documents selected yet.</p>
-            </div>
-          ) : (
-            <ul className="file-list">
-              {files.map((file, index) => (
-                <li key={`${file.name}-${file.size}-${index}`}>
-                  <div className="file-details">
+            {files.length === 0 ? (
+              <p className="muted">No files selected yet.</p>
+            ) : (
+              files.map((file, index) => (
+                <div className="file-row" key={`${file.name}-${index}`}>
+                  <div>
                     <strong>{file.name}</strong>
-                    <span>{formatSize(file.size)}</span>
+                    <p className="muted" style={{ margin: "5px 0" }}>
+                      {formatSize(file.size)}
+                    </p>
                   </div>
                   <button
                     className="remove-button"
                     onClick={() => removeFile(index)}
-                    type="button"
                   >
                     Remove
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+              ))
+            )}
 
-          <button
-            className="primary-button"
-            onClick={prepareExtraction}
-            disabled={files.length === 0}
-            type="button"
-          >
-            Prepare for Information Extraction
-          </button>
+            <button className="primary-button" onClick={prepareExtraction}>
+              Prepare for Information Extraction
+            </button>
+
+            {message && (
+              <div className="status" role="status">
+                {message}
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* EXTRACTED KNOWLEDGE */}
-        <section id="extracted" className="feature-section page-section">
-          <div className="section-heading">
-            <h2>Extracted Knowledge</h2>
-            <p>
-              Review information extracted from the selected project sources.
-            </p>
-          </div>
-
-          <div className="empty-state">
+        <section id="extracted" className="section">
+          <h2>Extracted Knowledge</h2>
+          <div className="card">
             <h3>Extraction results will appear here</h3>
-            <p>
+            <p className="muted">
               Actual extracted records will be displayed after connecting
               the document-processing backend.
             </p>
           </div>
         </section>
 
-        {/* MAPPER */}
-        <section id="mapper" className="feature-section page-section">
-          <div className="section-heading">
-            <h2>MAPPER – Knowledge Organisation</h2>
-            <p>
-              MAPPER categorises and normalises extracted information into
-              four entity types.
-            </p>
-          </div>
-
-          <div className="knowledge-grid">
-            <div className="knowledge-card">
-              <h3>PEOPLE</h3>
-              <p>Team members, owners, contributors and stakeholders.</p>
-            </div>
-            <div className="knowledge-card">
-              <h3>TASKS</h3>
-              <p>Activities, backlog items, blockers and pending work.</p>
-            </div>
-            <div className="knowledge-card">
-              <h3>MODULES</h3>
-              <p>Components, services and functional areas.</p>
-            </div>
-            <div className="knowledge-card">
-              <h3>DEPENDENCIES</h3>
-              <p>Connections between people, tasks and modules.</p>
-            </div>
-          </div>
-
-          <div className="empty-state">
-            <p>Normalised records will appear after backend integration.</p>
+        <section id="mapper" className="section">
+          <h2>MAPPER – Knowledge Organisation</h2>
+          <p className="muted">
+            MAPPER categorises and normalises extracted information into four entity types.
+          </p>
+          <div className="grid">
+            {["PEOPLE", "TASKS", "MODULES", "DEPENDENCIES"].map((item) => (
+              <div className="card" key={item}>
+                <h3>{item}</h3>
+                <p className="muted">
+                  Normalised records will appear after backend integration.
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* KNOWLEDGE GRAPH */}
-        <section id="graph" className="feature-section page-section">
-          <div className="section-heading">
-            <h2>Knowledge Graph</h2>
-            <p>
-              Explore relationships between people, tasks and project modules.
-            </p>
-          </div>
-
-          <div className="graph-placeholder">
-            <div className="graph-node">People</div>
-            <div className="graph-connection">↕</div>
-            <div className="graph-node">Tasks</div>
-            <div className="graph-connection">↕</div>
-            <div className="graph-node">Modules</div>
-            <p>
+        <section id="graph" className="section">
+          <h2>Knowledge Graph</h2>
+          <p className="muted">
+            Explore relationships between people, tasks and project modules.
+          </p>
+          <div className="card">
+            <div className="graph">
+              <div className="graph-node">People</div>
+              <span>↔</span>
+              <div className="graph-node">Tasks</div>
+              <span>↔</span>
+              <div className="graph-node">Modules</div>
+            </div>
+            <p className="muted">
               Illustrative relationship layout. Actual project relationships
               will be loaded from the knowledge graph backend.
             </p>
           </div>
         </section>
 
-        {/* KNOWLEDGE GAPS */}
-        <section id="gaps" className="feature-section page-section">
-          <div className="section-heading">
-            <h2>Knowledge Gaps</h2>
-            <p>
-              Identify missing information, conflicting records and
-              unverified relationships.
-            </p>
-          </div>
-
-          <div className="empty-state">
+        <section id="gaps" className="section">
+          <h2>Knowledge Gaps</h2>
+          <div className="card">
             <h3>No validation results yet</h3>
-            <p>
+            <p className="muted">
               Evidence matching and knowledge-gap detection require
               processed project data from the backend.
             </p>
           </div>
         </section>
 
-        {/* HANDOVER PLAYBOOK */}
-        <section id="handover" className="feature-section page-section">
-          <div className="section-heading">
-            <h2>Handover Playbook</h2>
-            <p>
-              A structured summary of verified project knowledge for
-              incoming employees.
-            </p>
-          </div>
-
-          <div className="playbook-preview">
-            <h3>{projectName || "Project Name"}</h3>
-            <div className="playbook-item">
-              <strong>1. Project Overview</strong>
-              <p>Project description and architecture.</p>
-            </div>
-            <div className="playbook-item">
-              <strong>2. Team and Responsibilities</strong>
-              <p>People, owners and contributors.</p>
-            </div>
-            <div className="playbook-item">
-              <strong>3. Modules and Dependencies</strong>
-              <p>Components and their relationships.</p>
-            </div>
-            <div className="playbook-item">
-              <strong>4. Tasks and Pending Work</strong>
-              <p>Current status, blockers and next actions.</p>
-            </div>
-            <div className="playbook-item">
-              <strong>5. Decisions and Knowledge Gaps</strong>
-              <p>Evidence, unresolved questions and risks.</p>
-            </div>
-            <p className="preview-note">
+        <section id="handover" className="section">
+          <h2>Handover Playbook</h2>
+          <p className="muted">
+            A structured summary of verified project knowledge for incoming employees.
+          </p>
+          <div className="card">
+            <h3>{projectName}</h3>
+            {[
+              "Project Overview – Project description and architecture.",
+              "Team and Responsibilities – People, owners and contributors.",
+              "Modules and Dependencies – Components and their relationships.",
+              "Tasks and Pending Work – Current status, blockers and next actions.",
+              "Decisions and Knowledge Gaps – Evidence, unresolved questions and risks.",
+            ].map((item, index) => (
+              <div className="step" key={index}>
+                <strong>{index + 1}.</strong> {item}
+              </div>
+            ))}
+            <p className="muted">
               This is a playbook structure preview, not generated project data.
               Connect the backend to populate and export a verified playbook.
             </p>
           </div>
         </section>
 
-        <footer className="app-footer">
+        <footer>
           ProjectPulse | CodeNova | Intelligent Knowledge Handover
         </footer>
       </main>
