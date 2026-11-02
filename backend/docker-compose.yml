@@ -1,0 +1,30 @@
+
+services:
+  database:
+    image: pgvector/pgvector:pg16
+    container_name: projectpulse-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-projectpulse}
+      POSTGRES_USER: ${POSTGRES_USER:-projectpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    shm_size: 128mb
+    mem_limit: 768m
+
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "max_connections=30"
+
+volumes:
+  postgres_data:
