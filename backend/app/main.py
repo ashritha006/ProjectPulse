@@ -377,7 +377,7 @@ def aggregate_project(request: ProjectAggregationRequest):
             project_data,
             "project_aggregate"
         )
-print("PLAYBOOK DEPENDENCIES:", project_data.get("dependencies", []))
+        print("PLAYBOOK DEPENDENCIES:", project_data.get("dependencies", []))
         playbook = generate_playbook(project_data)
 
         return {
