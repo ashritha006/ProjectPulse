@@ -75,6 +75,8 @@ export default function App() {
     verification_issues: [],
   }
 );
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 console.log("TASK TRACKER DATA:", extractedData.tasks);
 console.log("DEPENDENCY DATA:", extractedData.dependencies);
   function handleFiles(event) {
@@ -125,7 +127,7 @@ async function runExtraction() {
       formData.append("file", file);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/documents/extract",
+        `${API_BASE_URL}/api/v1/documents/extract`,
         {
           method: "POST",
           body: formData,
@@ -145,7 +147,7 @@ async function runExtraction() {
 
 try {
   const aggregateResponse = await fetch(
-    "http://127.0.0.1:8000/api/v1/projects/aggregate",
+    `${API_BASE_URL}/api/v1/projects/aggregate`,
     {
       method: "POST",
       headers: {
