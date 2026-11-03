@@ -1,8 +1,13 @@
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -13,6 +18,7 @@ body {
 .app-container {
   display: flex;
   min-height: 100vh;
+  width: 100%;
 }
 
 /* Sidebar styling */
@@ -64,7 +70,7 @@ body {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .nav-link:hover {
@@ -97,6 +103,7 @@ body {
   flex: 1;
   padding: 40px;
   max-width: 1200px;
+  min-width: 0;
 }
 
 .content-section {
@@ -170,6 +177,7 @@ body {
   border-radius: 10px;
   padding: 24px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  min-width: 0;
 }
 
 .card h3 {
@@ -183,6 +191,7 @@ body {
   color: #64748b;
   font-size: 14px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .text-input {
@@ -218,6 +227,10 @@ body {
   border-radius: 8px;
   font-size: 14px;
   color: #334155;
+}
+
+.workflow-step-item p {
+  overflow-wrap: anywhere;
 }
 
 .step-badge {
@@ -259,6 +272,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin: 24px 0 12px 0;
 }
 
@@ -271,16 +286,22 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   background: #f1f5f9;
   padding: 12px 16px;
   border-radius: 8px;
   margin-bottom: 8px;
 }
 
+.file-info {
+  min-width: 0;
+}
+
 .file-info strong {
   font-size: 14px;
   color: #1e293b;
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .file-info small {
@@ -297,6 +318,7 @@ body {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .remove-btn:hover {
@@ -319,6 +341,12 @@ body {
   background: #1e293b;
 }
 
+.primary-action-btn:disabled {
+  background: #64748b;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .status-toast {
   margin-top: 15px;
   background: #f0fdf4;
@@ -327,6 +355,7 @@ body {
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .banner-notice {
@@ -347,6 +376,7 @@ body {
   padding: 12px 16px;
   border-radius: 0 8px 8px 0;
   margin-bottom: 12px;
+  overflow-wrap: anywhere;
 }
 
 .data-row strong {
@@ -417,22 +447,57 @@ body {
   .app-container {
     flex-direction: column;
   }
+
   .app-sidebar {
     width: 100%;
     height: auto;
     position: relative;
     padding: 20px;
   }
+
   .sidebar-nav {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 15px;
   }
+
   .grid-2col {
     grid-template-columns: 1fr;
   }
+
   .app-main {
     padding: 20px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-main {
+    padding: 14px;
+  }
+
+  .hero-banner {
+    padding: 20px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .app-main h1 {
+    font-size: 24px;
+  }
+
+  .app-main h2 {
+    font-size: 18px;
+  }
+
+  .file-row {
+    align-items: flex-start;
+  }
+
+  .primary-action-btn {
+    max-width: 100%;
   }
 }
