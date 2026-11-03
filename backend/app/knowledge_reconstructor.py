@@ -1,10 +1,13 @@
-
 import re
 
 
 def reconstruct_knowledge(text: str, filename: str = "unknown") -> dict:
-
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [
+        sentence.strip()
+        for line in text.splitlines()
+        for sentence in re.split(r'(?<=[.!?])\s+', line)
+        if sentence.strip()
+    ]
 
     people = set()
     tasks = []
@@ -13,35 +16,60 @@ def reconstruct_knowledge(text: str, filename: str = "unknown") -> dict:
     decisions = []
 
     task_keywords = [
-        "complete", "develop", "implement",
-        "create", "build", "fix", "test",
-        "design", "update", "review"
-    ]
-
-    dependency_keywords = [
-        "depends on", "dependency",
-        "after completing", "requires", "blocked by",
-        "before", "must be completed"
+        "complete", "develop", "implement", "create", "build",
+        "fix", "test", "design", "update", "review", "integrate",
+        "deploy", "configure", "prepare", "maintain", "manage",
+        "analyze", "validate", "document", "install"
     ]
 
     decision_keywords = [
-        "decided", "decision", "agreed",
-        "selected", "chosen", "will use"
+        "decided", "decision", "agreed", "selected",
+        "chosen", "will use", "opted for", "approved"
     ]
 
-    # 1. Identify likely people
+    dependency_keywords = [
+        "depends on", "dependency", "after completing",
+        "requires", "blocked by", "before",
+        "must be completed"
+    ]
+
+    # 1. Identify people and roles
     for line in lines:
-        matches = re.findall(
-            r"\b([A-Z][a-z]+)(?=\s+(?:will|is|has|can|should|must))",
+        # Examples: Name: Nikitha, Owner: Nikitha
+        labelled_match = re.search(
+            r"\b(?:person|name|owner|assigned to|responsible person)"
+            r"\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+            line,
+            re.IGNORECASE
+        )
+
+        if labelled_match:
+            people.add(labelled_match.group(1).strip())
+
+        # Examples: Nikitha will develop the backend.
+        action_match = re.match(
+            r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+"
+            r"(?:will|is|has|can|should|must)\b",
             line
         )
-        people.update(matches)
 
-    
-    
-    # 2. Identify and structure dependencies
+        if action_match:
+            people.add(action_match.group(1).strip())
+
+        # Examples: Developer: Nikitha
+        role_match = re.search(
+            r"\b(?:developer|manager|designer|tester|lead|"
+            r"administrator|analyst)\s*:\s*"
+            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+            line,
+            re.IGNORECASE
+        )
+
+        if role_match:
+            people.add(role_match.group(1).strip())
+
+    # 2. Identify dependencies
     for line in lines:
-
         match = re.search(
             r"(.+?)\s+depends on\s+(.+)",
             line,
@@ -49,127 +77,136 @@ def reconstruct_knowledge(text: str, filename: str = "unknown") -> dict:
         )
 
         if match:
-            source_task = match.group(1).strip()
-            depends_on = match.group(2).strip().rstrip(".")
-
             dependencies.append({
-                "source_task": source_task,
-                "depends_on": depends_on,
+                "source_task": match.group(1).strip(" -*."),
+                "depends_on": match.group(2).strip(" -*."),
                 "relationship": "blocked_by",
                 "original_text": line
             })
+            continue
 
-        else:
-            before_match = re.search(
-                r"(.+?)\s+must be completed\s+before\s+(.+)",
-                line,
-                re.IGNORECASE
-            )
+        before_match = re.search(
+            r"(.+?)\s+must be completed\s+before\s+(.+)",
+            line,
+            re.IGNORECASE
+        )
 
-            if before_match:
-                prerequisite = before_match.group(1).strip()
-                following_task = before_match.group(2).strip().rstrip(".")
+        if before_match:
+            dependencies.append({
+                "source_task": before_match.group(2).strip(" -*."),
+                "depends_on": before_match.group(1).strip(" -*."),
+                "relationship": "blocked_by",
+                "original_text": line
+            })
+            continue
 
-                dependencies.append({
-                    "source_task": following_task,
-                    "depends_on": prerequisite,
-                    "relationship": "blocked_by",
-                    "original_text": line
-                })
-
-            elif any(word in line.lower() for word in dependency_keywords):
-                dependencies.append({
-                    "original_text": line,
-                    "relationship": "unclassified"
-                })
+        if any(word in line.lower() for word in dependency_keywords):
+            dependencies.append({
+                "original_text": line,
+                "relationship": "unclassified"
+            })
 
     # 3. Identify tasks, owners and deadlines
     for line in lines:
+        lower_line = line.lower()
 
-        is_dependency = any(
-            word in line.lower() for word in dependency_keywords
-        )
+        if any(word in lower_line for word in dependency_keywords):
+            continue
 
         has_task_keyword = any(
-            re.search(r"\b" + re.escape(keyword) + r"\b", line.lower())
+            re.search(r"\b" + re.escape(keyword) + r"\b", lower_line)
             for keyword in task_keywords
         )
 
-        if not is_dependency and has_task_keyword:
+        if not has_task_keyword:
+            continue
 
-            # Identify task owner
-            owner_match = re.match(
-                r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+will\s+",
-                line
+        owner_match = re.match(
+            r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+will\s+",
+            line
+        )
+
+        owner = owner_match.group(1) if owner_match else None
+
+        if owner:
+            people.add(owner)
+
+        deadline_match = re.search(
+            r"\b(?:by|before|on|due(?:\s+by)?)\s+"
+            r"((?:January|February|March|April|May|June|July|"
+            r"August|September|October|November|December)"
+            r"\s+\d{1,2}(?:,?\s+\d{4})?|"
+            r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            line,
+            re.IGNORECASE
+        )
+
+        deadline = deadline_match.group(1) if deadline_match else None
+
+        description = line
+
+        if owner_match:
+            description = description[owner_match.end():]
+
+        if deadline_match:
+            description = re.sub(
+                r"\s+(?:by|before|on|due(?:\s+by)?)\s+"
+                + re.escape(deadline) + r"\.?\s*$",
+                "",
+                description,
+                flags=re.IGNORECASE
             )
 
-            owner = owner_match.group(1) if owner_match else None
+        description = description.strip(" -*.")
 
-            # Identify deadline
-            deadline_match = re.search(
-                r"\b(?:by|before|on|due(?:\s+by)?)\s+"
-                r"((?:January|February|March|April|May|June|July|"
-                r"August|September|October|November|December)"
-                r"\s+\d{1,2}(?:,?\s+\d{4})?|"
-                r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
-                line,
-                re.IGNORECASE
-            )
-
-            deadline = deadline_match.group(1) if deadline_match else None
-
-            # Create a cleaner task description
-            description = line
-
-            if owner_match:
-                description = description[owner_match.end():]
-
-            if deadline_match:
-                description = re.sub(
-                    r"\s+(?:by|before|on|due(?:\s+by)?)\s+"
-                    + re.escape(deadline) + r"\.?\s*$",
-                    "",
-                    description,
-                    flags=re.IGNORECASE
-                )
-
-            description = description.strip(" .")
-
+        if description:
             tasks.append({
                 "description": description,
                 "owner": owner,
                 "deadline": deadline,
                 "status": "identified",
                 "evidence": line,
-                "source_document": filename,
+                "source_document": filename
             })
 
     # 4. Identify modules
     for line in lines:
-        matches = re.findall(
+        labelled_module = re.search(
+            r"\bmodule\s*:\s*(.+)",
+            line,
+            re.IGNORECASE
+        )
+
+        if labelled_module:
+            modules.add(labelled_module.group(1).strip(" -*."))
+
+        reverse_module = re.search(
             r"\b([A-Za-z][A-Za-z0-9_-]*)\s+module\b",
             line,
             re.IGNORECASE
         )
-        modules.update(matches)
+
+        if reverse_module:
+            modules.add(reverse_module.group(1))
 
     # 5. Identify decisions
     for line in lines:
         if any(word in line.lower() for word in decision_keywords):
             decisions.append(line)
-        
+
     # 6. Identify verification issues
     verification_issues = []
-    for index, task in enumerate(tasks):
+
+    for task in tasks:
         missing_fields = []
 
-        if not task.get("owner"):
+        if not task["owner"]:
             missing_fields.append("owner")
 
-        if not task.get("deadline"):
+        if not task["deadline"]:
             missing_fields.append("deadline")
 
-        if not task.get("evidence"):
+        if not task["evidence"]:
             missing_fields.append("evidence")
 
         if missing_fields:
@@ -178,6 +215,7 @@ def reconstruct_knowledge(text: str, filename: str = "unknown") -> dict:
                 "missing_fields": missing_fields,
                 "status": "needs_review"
             })
+
     return {
         "people": sorted(people),
         "tasks": tasks,
