@@ -75,8 +75,7 @@ export default function App() {
     verification_issues: [],
   }
 );
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = "https://projectpulse-api-d2p2.onrender.com/";
 console.log("TASK TRACKER DATA:", extractedData.tasks);
 console.log("DEPENDENCY DATA:", extractedData.dependencies);
   function handleFiles(event) {
@@ -147,7 +146,7 @@ async function runExtraction() {
 
 try {
   const aggregateResponse = await fetch(
-    `${API_BASE_URL}/api/v1/projects/aggregate`,
+    `${API_BASE_URL}/api/v1/documents/extract`,
     {
       method: "POST",
       headers: {
