@@ -574,12 +574,20 @@ export default function App() {
                 <h3 style={{ margin: "25px 0 15px" }}>Active Dependencies</h3>
 
                 {extractedData.dependencies.map((dep, i) => (
-                  <div className="data-row" key={i}>
-                    <p>
-                      {dep.source_task} → {dep.relationship} → {dep.depends_on}
-                    </p>
-                  </div>
-                ))}
+  <div className="data-row" key={i}>
+    {dep.relationship === "unclassified" ? (
+      <p>
+        Needs review: {dep.original_text || "Unclassified dependency"}
+      </p>
+    ) : dep.relationship === "owns" ? null : (
+      <p>
+        {dep.source_task || "Unknown task"} → 
+        {dep.relationship || "depends on"} → 
+        {dep.depends_on || "Unknown dependency"}
+      </p>
+    )}
+  </div>
+))}
               </div>
             )}
           </div>
