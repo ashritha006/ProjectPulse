@@ -1,5 +1,8 @@
+
 import { useState } from "react";
 import "./App.css";
+
+const API_BASE_URL = "https://projectpulse-api-d2p2.onrender.com";
 
 const sections = [
   ["overview", "Overview"],
@@ -50,47 +53,52 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [projectResult, setProjectResult] = useState(null);
   const [aggregationError, setAggregationError] = useState("");
+
   const extractedData = extractedDocuments.reduce(
-  (combined, document) => {
-    const data = document.extracted_data || {};
-  
-    return {
-      people: [...combined.people, ...(data.people || [])],
-      tasks: [...combined.tasks, ...(data.tasks || [])],
-      modules: [...combined.modules, ...(data.modules || [])],
-      dependencies: [...combined.dependencies, ...(data.dependencies || [])],
-      decisions: [...combined.decisions, ...(data.decisions || [])],
-      verification_issues: [
-        ...combined.verification_issues,
-        ...(data.verification_issues || []),
-      ],
-    };
-  },
-  {
-    people: [],
-    tasks: [],
-    modules: [],
-    dependencies: [],
-    decisions: [],
-    verification_issues: [],
-  }
-);
-const API_BASE_URL = "https://projectpulse-api-d2p2.onrender.com";
-console.log("TASK TRACKER DATA:", extractedData.tasks);
-console.log("DEPENDENCY DATA:", extractedData.dependencies);
+    (combined, document) => {
+      const data = document.extracted_data || {};
+
+      return {
+        people: [...combined.people, ...(data.people || [])],
+        tasks: [...combined.tasks, ...(data.tasks || [])],
+        modules: [...combined.modules, ...(data.modules || [])],
+        dependencies: [...combined.dependencies, ...(data.dependencies || [])],
+        decisions: [...combined.decisions, ...(data.decisions || [])],
+        verification_issues: [
+          ...combined.verification_issues,
+          ...(data.verification_issues || [])
+        ]
+      };
+    },
+    {
+      people: [],
+      tasks: [],
+      modules: [],
+      dependencies: [],
+      decisions: [],
+      verification_issues: []
+    }
+  );
+
+  console.log("TASK TRACKER DATA:", extractedData.tasks);
+  console.log("DEPENDENCY DATA:", extractedData.dependencies);
+
   function handleFiles(event) {
     const picked = Array.from(event.target.files || []);
     const allowed = [".pdf", ".docx", ".txt", ".md"];
+
     const valid = picked.filter(file =>
       allowed.some(ext => file.name.toLowerCase().endsWith(ext))
     );
 
-    setFiles(old => [
-      ...old,
-      ...valid
-    ].filter((file, index, arr) => 
-      arr.findIndex(item => item.name === file.name && item.size === file.size) === index
-    ));
+    setFiles(old =>
+      [...old, ...valid].filter(
+        (file, index, arr) =>
+          arr.findIndex(
+            item => item.name === file.name && item.size === file.size
+          ) === index
+      )
+    );
 
     setMessage(
       valid.length !== picked.length
@@ -99,6 +107,7 @@ console.log("DEPENDENCY DATA:", extractedData.dependencies);
         ? "Documents loaded successfully. Click 'Initialize Extraction' below."
         : ""
     );
+
     event.target.value = "";
   }
 
@@ -107,124 +116,129 @@ console.log("DEPENDENCY DATA:", extractedData.dependencies);
     setMessage("File removed from staging list.");
   }
 
-  
-async function runExtraction() {
-  if (!files.length) {
-    setMessage("Please select at least one document source first.");
-    return;
-  }
+  async function runExtraction() {
+    if (!files.length) {
+      setMessage("Please select at least one document source first.");
+      return;
+    }
 
-  setLoading(true);
-  setReady(false);
-  setMessage("Uploading documents and extracting information...");
+    setLoading(true);
+    setReady(false);
+    setMessage("Uploading documents and extracting information...");
 
-  try {
-    const results = [];
+    try {
+      const results = [];
 
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append("file", file);
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/documents/extract`,
-        {
-          method: "POST",
-          body: formData,
+        const response = await fetch(
+          `${API_BASE_URL}/api/v1/documents/extract`,
+          {
+            method: "POST",
+            body: formData
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`${file.name}: ${errorText}`);
         }
-      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`${file.name}: ${errorText}`);
+        const result = await response.json();
+        results.push(result);
       }
 
-      const result = await response.json();
-      results.push(result);
+      setExtractedDocuments(results);
+
+      try {
+        const aggregateResponse = await fetch(
+          `${API_BASE_URL}/api/v1/projects/aggregate`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              document_ids: results.map(doc => doc.document_id)
+            })
+          }
+        );
+
+        if (!aggregateResponse.ok) {
+          throw new Error(await aggregateResponse.text());
+        }
+
+        const aggregateData = await aggregateResponse.json();
+
+        console.log("FULL AGGREGATION RESPONSE:", aggregateData);
+        console.log("PLAYBOOK RESPONSE:", aggregateData.playbook);
+
+        console.log(
+          "PROJECT HANDOVER DETAILS:",
+          JSON.stringify(
+            aggregateData.playbook?.project_handover,
+            null,
+            2
+          )
+        );
+
+        setProjectResult(aggregateData);
+        setAggregationError("");
+      } catch (error) {
+        console.error("Aggregation error:", error);
+        setAggregationError(error.message);
+      }
+
+      setReady(true);
+      setMessage(`Successfully processed ${results.length} document(s).`);
+    } catch (error) {
+      console.error("Extraction error:", error);
+      setMessage(`Extraction failed: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-
-    setExtractedDocuments(results);
-
-try {
-  const aggregateResponse = await fetch(
-    `${API_BASE_URL}/api/v1/projects/aggregate`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        document_ids: results.map(doc => doc.document_id),
-      }),
-    }
-  );
-
-  if (!aggregateResponse.ok) {
-    throw new Error(await aggregateResponse.text());
   }
-
-  const aggregateData = await aggregateResponse.json();
-  console.log("FULL AGGREGATION RESPONSE:", aggregateData);
-  console.log("PLAYBOOK RESPONSE:", aggregateData.playbook);
-  console.log(
-  "PROJECT HANDOVER DETAILS:",
-  JSON.stringify(aggregateData.playbook.project_handover, null, 2)
-);
-  setProjectResult(aggregateData);
-  setAggregationError("");
-} catch (error) {
-  console.error("Aggregation error:", error);
-  setAggregationError(error.message);
-}
-
-setReady(true);
-setMessage(`Successfully processed ${results.length} document(s).`);
-  } catch (error) {
-    console.error("Extraction error:", error);
-    setMessage(`Extraction failed: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-}
-
 
   function navigate(id) {
     setActive(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  
-function exportPlaybook() {
-  const generatedPlaybook = projectResult?.playbook;
+  function exportPlaybook() {
+    const generatedPlaybook = projectResult?.playbook;
 
-  if (!generatedPlaybook) {
-    setMessage("No generated playbook is available. Run extraction first.");
-    return;
+    if (!generatedPlaybook) {
+      setMessage("No generated playbook is available. Run extraction first.");
+      return;
+    }
+
+    const content =
+      typeof generatedPlaybook === "string"
+        ? generatedPlaybook
+        : JSON.stringify(generatedPlaybook, null, 2);
+
+    const blob = new Blob([content], {
+      type: "application/json;charset=utf-8"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "ProjectPulse_Handover_Playbook.json";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    setMessage("Generated handover playbook downloaded successfully.");
   }
-
-  const content =
-    typeof generatedPlaybook === "string"
-      ? generatedPlaybook
-      : JSON.stringify(generatedPlaybook, null, 2);
-
-  const blob = new Blob([content], {
-    type: "application/json;charset=utf-8",
-  });
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = "ProjectPulse_Handover_Playbook.json";
-
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  URL.revokeObjectURL(url);
-
-  setMessage("Generated handover playbook downloaded successfully.");
-}
-
 
   return (
     <div className="app-container">
@@ -260,14 +274,22 @@ function exportPlaybook() {
         )}
 
         <section id="overview" className="content-section">
-          <div className="section-eyebrow">CODENOVA · ENTERPRISE KNOWLEDGE PLATFORM</div>
+          <div className="section-eyebrow">
+            CODENOVA · ENTERPRISE KNOWLEDGE PLATFORM
+          </div>
+
           <h1>Project Knowledge Overview</h1>
-          <p className="section-subtitle">Reconstruct, connect, and preserve critical engineering knowledge seamlessly.</p>
+
+          <p className="section-subtitle">
+            Reconstruct, connect, and preserve critical engineering knowledge seamlessly.
+          </p>
 
           <div className="hero-banner">
             <h2>Welcome to ProjectPulse</h2>
             <p>
-              Transform scattered documentation and team updates into connected, structured, and actionable intelligence for frictionless employee onboarding and handovers.
+              Transform scattered documentation and team updates into connected,
+              structured, and actionable intelligence for frictionless employee
+              onboarding and handovers.
             </p>
           </div>
 
@@ -282,6 +304,7 @@ function exportPlaybook() {
           </div>
 
           <h2>Core Knowledge Categories</h2>
+
           <div className="grid-2col">
             {[
               ["People", "Mapping key team members, structural roles, and individual ownership."],
@@ -297,6 +320,7 @@ function exportPlaybook() {
           </div>
 
           <h2>Platform Workflow</h2>
+
           <div className="workflow-container">
             {[
               "Upload multi-format project sources",
@@ -317,18 +341,22 @@ function exportPlaybook() {
 
         <section id="sources" className="content-section">
           <h2>Source Document Upload</h2>
-          <p className="section-subtitle">Supported file formats: PDF, DOCX, CSV, TXT, and Markdown (.md).</p>
+
+          <p className="section-subtitle">
+            Supported file formats: PDF, DOCX, CSV, TXT, and Markdown (.md).
+          </p>
 
           <div className="card upload-card">
             <h3>Staging Area</h3>
+
             <label className="browse-button">
               Browse Local Files
               <input
-  type="file"
-  accept=".pdf,.docx,.txt,.md"
-  multiple
-  onChange={handleFiles}
-/>
+                type="file"
+                accept=".pdf,.docx,.txt,.md"
+                multiple
+                onChange={handleFiles}
+              />
             </label>
 
             <div className="file-heading">
@@ -345,13 +373,21 @@ function exportPlaybook() {
                     <strong>{file.name}</strong>
                     <small>{(file.size / 1024).toFixed(1)} KB</small>
                   </div>
-                  <button className="remove-btn" onClick={() => removeFile(i)}>Remove</button>
+
+                  <button className="remove-btn" onClick={() => removeFile(i)}>
+                    Remove
+                  </button>
                 </div>
               ))
             )}
 
-            <button className="primary-action-btn" onClick={runExtraction} style={{ marginTop: "20px" }}>
-              Initialize Extraction Pipeline
+            <button
+              className="primary-action-btn"
+              onClick={runExtraction}
+              style={{ marginTop: "20px" }}
+              disabled={loading}
+            >
+              {loading ? "Processing..." : "Initialize Extraction Pipeline"}
             </button>
 
             {message && <div className="status-toast">{message}</div>}
@@ -360,160 +396,185 @@ function exportPlaybook() {
 
         <section id="extracted" className="content-section">
           <h2>Extracted Knowledge Matrix</h2>
+
           {!ready ? (
             <div className="card">
-              <p className="section-subtitle">Upload documentation and initialize extraction to populate structured records.</p>
+              <p className="section-subtitle">
+                Upload documentation and initialize extraction to populate structured records.
+              </p>
             </div>
           ) : (
             <div className="grid-2col">
               <div className="card">
                 <h3>People Directory</h3>
+
                 {extractedData.people.map((person, i) => (
-  <div className="data-row" key={i}>
-    <strong>{person.name || "Unnamed person"}</strong>
-    <p>Role: {person.role || "Not specified"}</p>
-  </div>
-))}
+                  <div className="data-row" key={i}>
+                    <strong>{person.name || "Unnamed person"}</strong>
+                    <p>Role: {person.role || "Not specified"}</p>
+                  </div>
+                ))}
               </div>
 
               <div className="card">
                 <h3>Task Tracker</h3>
+
                 {extractedData.tasks.map((task, i) => (
-  <div className="data-row" key={i}>
-    <strong>
-  {task.description || task.name || task.title || task.task || "Unnamed task"}
-</strong>
-    <p>Status: {task.status || "Not specified"}</p>
-    <p>Owner: {task.owner || "Unassigned"}</p>
-    <p>Deadline: {task.deadline || "Not specified"}</p>
-  </div>
-))}
+                  <div className="data-row" key={i}>
+                    <strong>
+                      {task.description || task.name || task.title || task.task || "Unnamed task"}
+                    </strong>
+                    <p>Status: {task.status || "Not specified"}</p>
+                    <p>Owner: {task.owner || "Unassigned"}</p>
+                    <p>Deadline: {task.deadline || "Not specified"}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </section>
 
-        
-<section id="mapper" className="content-section">
-  <h2>MAPPER – Knowledge Organisation</h2>
+        <section id="mapper" className="content-section">
+          <h2>MAPPER – Knowledge Organisation</h2>
 
-  <div className="grid-2col">
-    <div className="card">
-      <h3>PEOPLE</h3>
-      {extractedData.people.map((person, i) => (
-        <div className="data-row" key={i}>
-          <strong>{person.name || "Unnamed person"}</strong>
-          <p>{person.role || person.responsibility || "Responsibility not specified"}</p>
-        </div>
-      ))}
-      {!extractedData.people.length && <p>No people identified.</p>}
-    </div>
+          <div className="grid-2col">
+            <div className="card">
+              <h3>PEOPLE</h3>
 
-    <div className="card">
-      <h3>TASKS</h3>
-      {extractedData.tasks.map((task, i) => (
-        <div className="data-row" key={i}>
-          <strong>
-            {task.description || task.name || task.title || task.task || "Unnamed task"}
-          </strong>
-          <p>Owner: {task.owner || "Unassigned"}</p>
-          <p>Status: {task.status || "Not specified"}</p>
-        </div>
-      ))}
-      {!extractedData.tasks.length && <p>No tasks identified.</p>}
-    </div>
+              {extractedData.people.map((person, i) => (
+                <div className="data-row" key={i}>
+                  <strong>{person.name || "Unnamed person"}</strong>
+                  <p>
+                    {person.role || person.responsibility || "Responsibility not specified"}
+                  </p>
+                </div>
+              ))}
 
-    <div className="card">
-      <h3>MODULES</h3>
-      {extractedData.modules.map((module, i) => (
-        <div className="data-row" key={i}>
-          <strong>{module.name || module.module || module}</strong>
-        </div>
-      ))}
-      {!extractedData.modules.length && <p>No modules identified.</p>}
-    </div>
+              {!extractedData.people.length && <p>No people identified.</p>}
+            </div>
 
-    <div className="card">
-      <h3>DEPENDENCIES</h3>
-      {extractedData.dependencies.map((dep, i) => (
-        <div className="data-row" key={i}>
-          <strong>{dep.source_task || "Unknown task"}</strong>
-          <p>{dep.relationship || "depends on"}</p>
-          <strong>{dep.depends_on || "Unknown dependency"}</strong>
-        </div>
-      ))}
-      {!extractedData.dependencies.length && <p>No dependencies identified.</p>}
-    </div>
-  </div>
-</section>
+            <div className="card">
+              <h3>TASKS</h3>
 
+              {extractedData.tasks.map((task, i) => (
+                <div className="data-row" key={i}>
+                  <strong>
+                    {task.description || task.name || task.title || task.task || "Unnamed task"}
+                  </strong>
+                  <p>Owner: {task.owner || "Unassigned"}</p>
+                  <p>Status: {task.status || "Not specified"}</p>
+                </div>
+              ))}
+
+              {!extractedData.tasks.length && <p>No tasks identified.</p>}
+            </div>
+
+            <div className="card">
+              <h3>MODULES</h3>
+
+              {extractedData.modules.map((module, i) => (
+                <div className="data-row" key={i}>
+                  <strong>{module.name || module.module || module}</strong>
+                </div>
+              ))}
+
+              {!extractedData.modules.length && <p>No modules identified.</p>}
+            </div>
+
+            <div className="card">
+              <h3>DEPENDENCIES</h3>
+
+              {extractedData.dependencies.map((dep, i) => (
+                <div className="data-row" key={i}>
+                  <strong>{dep.source_task || "Unknown task"}</strong>
+                  <p>{dep.relationship || "depends on"}</p>
+                  <strong>{dep.depends_on || "Unknown dependency"}</strong>
+                </div>
+              ))}
+
+              {!extractedData.dependencies.length && <p>No dependencies identified.</p>}
+            </div>
+          </div>
+        </section>
 
         <section id="graph" className="content-section">
           <h2>Knowledge Graph & Relationships</h2>
+
           <div className="card">
             {!ready ? (
-              <p className="section-subtitle">Run extraction to render interactive relationship graphs.</p>
+              <p className="section-subtitle">
+                Run extraction to render interactive relationship graphs.
+              </p>
             ) : (
               <div>
                 <div className="card">
-  <h3>People</h3>
-  {(projectResult?.knowledge_graph?.nodes || [])
-    .filter(node => node.type === "person")
-    .map(node => (
-      <div className="data-row" key={node.id}>
-        <strong>{node.label}</strong>
-      </div>
-    ))}
+                  <h3>People</h3>
 
-  <h3>Tasks</h3>
-  {(projectResult?.knowledge_graph?.nodes || [])
-    .filter(node => node.type === "task" && !node.extracted_from_dependency)
-    .map(node => (
-      <div className="data-row" key={node.id}>
-        <strong>{node.label}</strong>
-        <p>Owner: {node.owner || "Unassigned"}</p>
-        <p>Deadline: {node.deadline || "Not specified"}</p>
-        <p>Status: {node.status || "Not specified"}</p>
-      </div>
-    ))}
+                  {(projectResult?.knowledge_graph?.nodes || [])
+                    .filter(node => node.type === "person")
+                    .map(node => (
+                      <div className="data-row" key={node.id}>
+                        <strong>{node.label}</strong>
+                      </div>
+                    ))}
 
-  <h3>Modules</h3>
-  {(projectResult?.knowledge_graph?.nodes || [])
-    .filter(node => node.type === "module")
-    .map(node => (
-      <div className="data-row" key={node.id}>
-        {node.label}
-      </div>
-    ))}
+                  <h3>Tasks</h3>
 
-  <h3>Dependencies</h3>
-  {(projectResult?.knowledge_graph?.edges || []).map((edge, i) => {
-    const nodes = projectResult?.knowledge_graph?.nodes || [];
-    const source = nodes.find(node => node.id === edge.source);
-    const target = nodes.find(node => node.id === edge.target);
+                  {(projectResult?.knowledge_graph?.nodes || [])
+                    .filter(node => node.type === "task" && !node.extracted_from_dependency)
+                    .map(node => (
+                      <div className="data-row" key={node.id}>
+                        <strong>{node.label}</strong>
+                        <p>Owner: {node.owner || "Unassigned"}</p>
+                        <p>Deadline: {node.deadline || "Not specified"}</p>
+                        <p>Status: {node.status || "Not specified"}</p>
+                      </div>
+                    ))}
 
-    return (
-      <div className="data-row" key={i}>
-        <strong>{source?.label || edge.source}</strong>
-        <p>Relationship: {edge.relationship}</p>
-        <strong>{target?.label || edge.target}</strong>
-      </div>
-    );
-  })}
+                  <h3>Modules</h3>
 
-  <h3>Decisions</h3>
-  {(projectResult?.knowledge_graph?.nodes || [])
-    .filter(node => node.type === "decision")
-    .map(node => (
-      <div className="data-row" key={node.id}>
-        {node.label}
-      </div>
-    ))}
-</div>
+                  {(projectResult?.knowledge_graph?.nodes || [])
+                    .filter(node => node.type === "module")
+                    .map(node => (
+                      <div className="data-row" key={node.id}>
+                        {node.label}
+                      </div>
+                    ))}
+
+                  <h3>Dependencies</h3>
+
+                  {(projectResult?.knowledge_graph?.edges || []).map((edge, i) => {
+                    const nodes = projectResult?.knowledge_graph?.nodes || [];
+                    const source = nodes.find(node => node.id === edge.source);
+                    const target = nodes.find(node => node.id === edge.target);
+
+                    return (
+                      <div className="data-row" key={i}>
+                        <strong>{source?.label || edge.source}</strong>
+                        <p>Relationship: {edge.relationship}</p>
+                        <strong>{target?.label || edge.target}</strong>
+                      </div>
+                    );
+                  })}
+
+                  <h3>Decisions</h3>
+
+                  {(projectResult?.knowledge_graph?.nodes || [])
+                    .filter(node => node.type === "decision")
+                    .map(node => (
+                      <div className="data-row" key={node.id}>
+                        {node.label}
+                      </div>
+                    ))}
+                </div>
+
                 <h3 style={{ margin: "25px 0 15px" }}>Active Dependencies</h3>
+
                 {extractedData.dependencies.map((dep, i) => (
                   <div className="data-row" key={i}>
-                    <p>{dep.source_task} → {dep.relationship} → {dep.depends_on}</p>
+                    <p>
+                      {dep.source_task} → {dep.relationship} → {dep.depends_on}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -523,55 +584,59 @@ function exportPlaybook() {
 
         <section id="gaps" className="content-section">
           <h2>Knowledge Gaps & Risk Analysis</h2>
+
           <div className="card">
             {!ready ? (
-              <p className="section-subtitle">Initialize extraction to run heuristic risk analysis.</p>
+              <p className="section-subtitle">
+                Initialize extraction to run heuristic risk analysis.
+              </p>
             ) : (extractedData.verification_issues || []).length ? (
-  extractedData.verification_issues.map((gap, i) => (
-    <div className="data-row warning-row" key={i}>
-      <h3>Risk Item #{i + 1}</h3>
+              extractedData.verification_issues.map((gap, i) => (
+                <div className="data-row warning-row" key={i}>
+                  <h3>Risk Item #{i + 1}</h3>
 
-      <p>
-        <strong>Task:</strong>{" "}
-        {gap.task || "Unspecified task"}
-      </p>
+                  <p>
+                    <strong>Task:</strong>{" "}
+                    {gap.task || "Unspecified task"}
+                  </p>
 
-      <p>
-        <strong>Missing information:</strong>{" "}
-        {gap.missing_fields?.join(", ") || "None"}
-      </p>
+                  <p>
+                    <strong>Missing information:</strong>{" "}
+                    {gap.missing_fields?.join(", ") || "None"}
+                  </p>
 
-      <p>
-        <strong>Status:</strong>{" "}
-        {gap.status || "Needs review"}
-      </p>
-    </div>
-  ))
-) : (
-  <p>No verification issues were identified.</p>
-)}
+                  <p>
+                    <strong>Status:</strong>{" "}
+                    {gap.status || "Needs review"}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p>No verification issues were identified.</p>
+            )}
           </div>
         </section>
 
         <section id="handover" className="content-section">
           <h2>Handover Playbook</h2>
+
           <div className="card playbook-card">
-  <h3>{projectName}</h3>
+            <h3>{projectName}</h3>
 
-  {!ready ? (
-    <p className="section-subtitle">
-      Complete prior steps to compile the final exportable playbook.
-    </p>
-  ) : (
-    <div>
-      <div className="section-subtitle" style={{ marginBottom: "20px" }}>
-        
-<pre>
-{(() => {
-  const handover = projectResult?.playbook?.project_handover || {};
-  const summary = projectResult?.playbook?.summary || {};
+            {!ready ? (
+              <p className="section-subtitle">
+                Complete prior steps to compile the final exportable playbook.
+              </p>
+            ) : (
+              <div>
+                <div className="section-subtitle" style={{ marginBottom: "20px" }}>
+                  <pre>
+                    {(() => {
+                      const handover =
+                        projectResult?.playbook?.project_handover || {};
+                      const summary = projectResult?.playbook?.summary || {};
 
-  return `PROJECT HANDOVER PLAYBOOK
+                      return `PROJECT HANDOVER PLAYBOOK
 ${projectName}
 
 ========================================
@@ -650,17 +715,16 @@ Dependencies: ${summary.total_dependencies ?? handover.dependencies?.length ?? 0
 Decisions: ${summary.total_decisions ?? handover.decisions?.length ?? 0}
 Priority Tasks: ${summary.priority_tasks ?? handover.priority_tasks?.length ?? 0}
 `;
-})()}
-</pre>
+                    })()}
+                  </pre>
+                </div>
 
-      </div>
-
-      <button className="primary-action-btn" onClick={exportPlaybook}>
-        Download Handover Playbook (.txt)
-      </button>
-    </div>
-  )}
-</div>
+                <button className="primary-action-btn" onClick={exportPlaybook}>
+                  Download Handover Playbook (.txt)
+                </button>
+              </div>
+            )}
+          </div>
         </section>
 
         <footer className="app-footer">
