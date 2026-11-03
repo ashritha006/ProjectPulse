@@ -441,14 +441,17 @@ export default function App() {
             <div className="card">
               <h3>PEOPLE</h3>
 
-              {extractedData.people.map((person, i) => (
-                <div className="data-row" key={i}>
-                  <strong>{person.name || "Unnamed person"}</strong>
-                  <p>
-                    {person.role || person.responsibility || "Responsibility not specified"}
-                  </p>
-                </div>
-              ))}
+              {extractedData.dependencies.map((dep, i) => (
+  <div className="data-row" key={i}>
+    {dep.relationship === "unclassified" ? (
+      <p>Needs review: {dep.original_text || "Unclassified dependency"}</p>
+    ) : (
+      <p>
+        {dep.source_task || "Unknown task"} → {dep.relationship || "depends on"} → {dep.depends_on || "Unknown dependency"}
+      </p>
+    )}
+  </div>
+))}
 
               {!extractedData.people.length && <p>No people identified.</p>}
             </div>
@@ -660,9 +663,13 @@ ${(handover.tasks || []).map((task, i) =>
 ========================================
 3. DEPENDENCIES
 ========================================
-${(handover.dependencies || []).map(dep =>
-  `${dep.source_task} ${dep.relationship} ${dep.depends_on}`
-).join("\n") || "No dependencies identified."}
+${(handover.dependencies || []).map(dep => {
+  if (dep.relationship === "unclassified") {
+    return `Needs review: ${dep.original_text || "Unclassified dependency"}`;
+  }
+
+  return `${dep.source_task || "Unknown task"} ${dep.relationship || "depends on"} ${dep.depends_on || "Unknown dependency"}`;
+}).join("\n") || "No dependencies identified."}
 
 ========================================
 4. DECISIONS
